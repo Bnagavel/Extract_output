@@ -9,12 +9,10 @@
 #     7,          -3.,          -1.,        0.147
 #     8,          -2.,          -2.,        0.147
 
-# commit - edit_find_path_nodes_2023_10_31_01
-
 # import modules
 import numpy as np
 
-def create_node_dict(node_data_file_name):
+def create_node_dict(node_data_file_name, aligned_angle):
     # Read in the node data from the file
 
     # Open textfile
@@ -37,7 +35,7 @@ def create_node_dict(node_data_file_name):
         y = line.split(',')[2]
         z = line.split(',')[3]
         node_dict[node] = [x, y, z]
-            
+             
     # Find minimum and maximum x, y and z co-ordinates
     x_min = 0
     x_max = 0
@@ -71,7 +69,23 @@ def create_node_dict(node_data_file_name):
     Plate_Width = y_max - y_min
     Plate_Height = z_max - z_min        
             
-
+    # Transform node co-ordinates x and y based on aligned_angle
+    # aligned_angle is the angle of node alignment in degrees
+    # aligned_angle could be 0, 15, 30 or 45 degrees
+    # Loop through node_dict
+    for node in node_dict:
+        # Extract x and y co-ordinates
+        x = float(node_dict[node][0])
+        y = float(node_dict[node][1])
+        # Transform x and y co-ordinates and round to 3 decimal places
+        x_transformed = x*np.cos(np.deg2rad(aligned_angle)) - y*np.sin(np.deg2rad(aligned_angle))
+        y_transformed = x*np.sin(np.deg2rad(aligned_angle)) + y*np.cos(np.deg2rad(aligned_angle))
+        x_transformed = round(x_transformed, 3)
+        y_transformed = round(y_transformed, 3)
+        # Update node_dict
+        node_dict[node][0] = x_transformed
+        node_dict[node][1] = y_transformed
+        
     # Find unique z co-ordinates
     z_list = []
     for node in node_dict:
@@ -93,8 +107,6 @@ def create_node_dict(node_data_file_name):
     #     7,           1.,           1.,        0.
     #     8,           1.,           1.,        0.0735
     #     9,           1.,           1.,        0.147
-    # Create empty Node_dict_sorted_z dictionary
-    node_dict_sorted_z = {}
     # Loop through node_dict
     # create num_unique_z_coord arrays
     # Example 3 arrays
@@ -168,6 +180,43 @@ def create_node_dict(node_data_file_name):
                                 new_node_label[node] = new_node_label[node][::-1]
     # Example new_node_label
     #     new_node_label[1] = [1, 1, 1]
+    
+    # Find maximum and minimum new node label in the x, y and z directions
+    new_node_label_x_max = 0
+    new_node_label_x_min = 0
+    new_node_label_y_max = 0
+    new_node_label_y_min = 0
+    new_node_label_z_max = 0
+    new_node_label_z_min = 0
+    for node in new_node_label:
+        new_node_label_x = new_node_label[node][0]
+        new_node_label_y = new_node_label[node][1]
+        new_node_label_z = new_node_label[node][2]
+        if new_node_label_x > new_node_label_x_max:
+            new_node_label_x_max = new_node_label_x
+        if new_node_label_x < new_node_label_x_min:
+            new_node_label_x_min = new_node_label_x
+        if new_node_label_y > new_node_label_y_max:
+            new_node_label_y_max = new_node_label_y
+        if new_node_label_y < new_node_label_y_min:
+            new_node_label_y_min = new_node_label_y
+        if new_node_label_z > new_node_label_z_max:
+            new_node_label_z_max = new_node_label_z
+        if new_node_label_z < new_node_label_z_min:
+            new_node_label_z_min = new_node_label_z
+            
+    # Create a list of new node label for x,1,1
+    # Example
+    #     new_node_label_x_list = [[1, 1, 1], [2, 1, 1], [3, 1, 1]]
+    new_node_label_x_list = []
+    for i in range(new_node_label_x_min, new_node_label_x_max+1):
+        new_node_label_x_list.append([i, 1, 1])
+    # Create a list of new node label for 1,y,1
+    # Example
+    #     new_node_label_y_list = [[1, 1, 1], [1, 2, 1], [1, 3, 1]]
+    new_node_label_y_list = []
+    for i in range(new_node_label_y_min, new_node_label_y_max+1):
+        new_node_label_y_list.append([1, i, 1])
                                 
     # Create Node_dict_sorted dictionary based on new_node_label
     # Loop through node_dict
@@ -200,13 +249,14 @@ def create_node_dict(node_data_file_name):
         Node_dict_sorted[node] = [new_node_label_list, node_coord]
 
     # Return Node_dict_sorted dictionary
-    return Node_dict_sorted
+    return Node_dict_sorted, new_node_label_x_list, new_node_label_y_list
 
 
 def find_path_nodes(node_dict_sorted, node_start_label, angle):
+
     find_path_nodes_list = []
     find_path_node_label_list = []
-    
+
     if angle == 0:
         # Find path nodes
         # Find path nodes in the x direction
@@ -271,7 +321,6 @@ def find_path_nodes(node_dict_sorted, node_start_label, angle):
                     find_path_nodes_list_temp.append(node)
         find_path_nodes_list = find_path_nodes_list_temp
         
-       
     if angle == 90:
         # Find path nodes
         # Find path nodes in the y direction
@@ -347,17 +396,52 @@ def find_path_nodes(node_dict_sorted, node_start_label, angle):
                 if node_dict_sorted[node][0] == find_path_node_label_list[i]:
                     find_path_nodes_list_temp.append(node)
         find_path_nodes_list = find_path_nodes_list_temp
-    
+
     # Return find_path_nodes_list and find_path_node_label_list
     return find_path_nodes_list, find_path_node_label_list
+
+
+def session_path(part_name, path_name, path_type, node_number_list):
+#session.Path(name='Path-1', type=NODE_LIST, expression=(('PART-1-1', (205, )), 
+#    ('PART-1-1', (206, )), ('PART-1-1', (207, )), ('PART-1-1', (208, )), (
+#    'PART-1-1', (209, )), ('PART-1-1', (210, ))))
+    path_expression = []
+    for node_number in node_number_list:
+        path_expression.append((part_name, (node_number, )))
+    session_path = ('session.Path(name=\'' + path_name + '\', type=' + path_type + ', expression=' + str(path_expression) + ')')
+    return session_path
+
     
-x = create_node_dict('Study_iter02_aligned1_1.12microsecond_nodal_coordinates.txt')
+x = create_node_dict('Study_iter02_refined3_1.12microsecond_nodal_coordinates.txt', aligned_angle=0)
 #x= create_node_dict('data_test.txt')
 angle = 90
-y = find_path_nodes(x, ['2','1','1'], angle)
+y = find_path_nodes(x[0], ['2','1','1'], angle)
+print(angle, "\n")
+
+part_name = 'PART-1-1'
+path_name = 'Path-1'
+path_type = 'NODE_LIST'
+r = session_path(part_name, path_name, path_type, y[0])
+print(r)
+
+
+angle = 0
+z = find_path_nodes(x[0], ['2','1','1'], angle)
+print(angle, "\n")
+
+part_name = 'PART-1-1'
+path_name = 'Path-2'
+path_type = 'NODE_LIST'
+p = session_path(part_name, path_name, path_type, z[0])
+print(p)
+
+x = create_node_dict('Study_iter02_aligned1_1.12microsecond_nodal_coordinates.txt', aligned_angle=45)
+#x= create_node_dict('data_test.txt')
+angle = 90
+y = find_path_nodes(x[0], ['2','1','1'], angle)
 print(angle, "\n" ,y)
 angle = 0
-z = find_path_nodes(x, ['2','1','1'], angle)
+z = find_path_nodes(x[0], ['2','1','1'], angle)
 print(angle, "\n", z)
 
 
