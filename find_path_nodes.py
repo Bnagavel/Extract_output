@@ -249,7 +249,41 @@ def create_node_dict(node_data_file_name, aligned_angle):
         Node_dict_sorted[node] = [new_node_label_list, node_coord]
 
     # Return Node_dict_sorted dictionary
-    return Node_dict_sorted, new_node_label_x_list, new_node_label_y_list
+    return Node_dict_sorted, new_node_label_x_list, new_node_label_y_list, Plate_Height, Plate_Length, Plate_Width
+    # Example output
+    # Node_dict_sorted
+    #    Node_dict_sorted[1] = [[1, 1, 1], [0, 0, 0]]
+    #    Node_dict_sorted[2] = [[1, 1, 2], [0, 0, 0.0735]]
+    # new_node_label_x_list
+    #     [[1, 1, 1], [2, 1, 1], [3, 1, 1]]
+    # new_node_label_y_list
+    #     [[1, 1, 1], [1, 2, 1], [1, 3, 1]]
+    # Plate_Height
+    #     0.147
+    # Plate_Length
+    #     1.0
+    # Plate_Width
+    #     1.0
+    
+    
+
+def find_node_label(node_dict_sorted, node_number):
+    # Find node label based on node number
+    # Example
+    #     node_dict_sorted[1] = [[1, 1, 1], [0, 0, 0]]
+    #     node_dict_sorted[2] = [[1, 1, 2], [0, 0, 0.0735]]
+    #     node_dict_sorted[3] = [[1, 1, 3], [0, 0, 0.147]]
+    #     node_dict_sorted[4] = [[1, 2, 1], [0, 1, 0]]
+    #     node_dict_sorted[5] = [[1, 2, 2], [0, 1, 0.0735]]
+    #     node_dict_sorted[6] = [[1, 2, 3], [0, 1, 0.147]]
+    #     node_dict_sorted[7] = [[2, 1, 1], [1, 0, 0]]
+    #     node_dict_sorted[8] = [[2, 1, 2], [1, 0, 0.0735]]
+    #     node_dict_sorted[9] = [[2, 1, 3], [1, 0, 0.147]]
+    # Example
+    #     node_number = 1
+    #     node_label = [1, 1, 1]
+    node_label = node_dict_sorted[node_number][0]
+    return node_label
 
 
 def find_path_nodes(node_dict_sorted, node_start_label, angle):
@@ -407,16 +441,56 @@ def session_path(part_name, path_name, path_type, node_number_list):
 #    'PART-1-1', (209, )), ('PART-1-1', (210, ))))
     path_expression = []
     for node_number in node_number_list:
-        path_expression.append((part_name, (node_number, )))
+        path_expression.append((part_name, (int(node_number), )))
     session_path = ('session.Path(name=\'' + path_name + '\', type=' + path_type + ', expression=' + str(path_expression) + ')')
     return session_path
 
-    
-x = create_node_dict('Study_iter02_refined3_1.12microsecond_nodal_coordinates.txt', aligned_angle=0)
-#x= create_node_dict('data_test.txt')
-angle = 90
-y = find_path_nodes(x[0], ['2','1','1'], angle)
-print(angle, "\n")
+
+
+def session_path_print():    
+    x = create_node_dict('Study_iter02_refined3_1.12microsecond_nodal_coordinates.txt', aligned_angle=0)
+    #x= create_node_dict('data_test.txt')
+    angle = 90
+    y = find_path_nodes(x[0], ['2','1','1'], angle)
+    print(angle, "\n")
+
+    part_name = 'PART-1-1'
+    path_name = 'Path-1'
+    path_type = 'NODE_LIST'
+    r = session_path(part_name, path_name, path_type, y[0])
+    print(r)
+
+    angle = 0
+    z = find_path_nodes(x[0], ['2','1','1'], angle)
+    print(angle, "\n")
+
+    part_name = 'PART-1-1'
+    path_name = 'Path-2'
+    path_type = 'NODE_LIST'
+    p = session_path(part_name, path_name, path_type, z[0])
+    print(p)
+
+
+
+# x = create_node_dict('Study_iter02_aligned1_1.12microsecond_nodal_coordinates.txt', aligned_angle=0)
+# Example value of x
+# x[0] = {'1': [[-2.0, 0.0, 0.0], [0.0, 0.0, 0.0]], '2': [[-1.0, -1.0, 0.0], [0.0, 0.0, 0.0]], '3': [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], '4': [[-1.0, 1.0, 0.0], [0.0, 0.0, 0.0]], '5': [[-3.0, 1.0, 0.0], [0.0, 0.0, 0.0]], '6': [[-2.0, 2.0, 0.0], [0.0, 0.0, 0.0]], '7': [[-3.0, -1.0, 0.0], [0.0, 0.0, 0.0]], '8': [[-2.0, -2.0, 0.0], [0.0, 0.0, 0.0]]}
+#    x[0][1] = [[1, 1, 1], [0.0, 0.0, 0.0]]
+
+x = create_node_dict('Study_iter02_aligned1_1.12microsecond_nodal_coordinates.txt', aligned_angle=0)
+
+query_node = '2347'
+node_label = find_node_label(x[0], query_node)
+angle = 0 # path angle
+y = find_path_nodes(x[0], node_label, angle)
+y_print_nodes = ''
+for node in y[0]:
+    # print 'n int(node1), int(node2), int(node3)'
+    y_print_nodes = y_print_nodes + str(node) + ', '
+y_print_nodes = 'n ' + y_print_nodes[:-2]
+
+print("Path angle / start node ID / start node label / node list / node label list \n")
+print(angle, " " , "n", query_node, node_label, "\n" ,y_print_nodes, "\n", y[1])
 
 part_name = 'PART-1-1'
 path_name = 'Path-1'
@@ -425,24 +499,16 @@ r = session_path(part_name, path_name, path_type, y[0])
 print(r)
 
 
-angle = 0
-z = find_path_nodes(x[0], ['2','1','1'], angle)
-print(angle, "\n")
 
-part_name = 'PART-1-1'
-path_name = 'Path-2'
-path_type = 'NODE_LIST'
-p = session_path(part_name, path_name, path_type, z[0])
-print(p)
+#x = create_node_dict('Study_iter02_refined3_1.12microsecond_nodal_coordinates.txt', aligned_angle=0)
+#angle = 90
+#node_label = find_node_label(x[0], '6257')
+#y = find_path_nodes(x[0], node_label, angle)
+#print(angle, " ", node_label, "\n" ,y[0], "\n", y[1])
 
-x = create_node_dict('Study_iter02_aligned1_1.12microsecond_nodal_coordinates.txt', aligned_angle=45)
-#x= create_node_dict('data_test.txt')
-angle = 90
-y = find_path_nodes(x[0], ['2','1','1'], angle)
-print(angle, "\n" ,y)
-angle = 0
-z = find_path_nodes(x[0], ['2','1','1'], angle)
-print(angle, "\n", z)
+
+    
+
 
 
 
