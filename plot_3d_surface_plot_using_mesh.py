@@ -143,3 +143,5 @@ ax.set_title("3D Surface Plot of NCURS")
 
 # Show the plot
 plt.show()
+
+# %%
