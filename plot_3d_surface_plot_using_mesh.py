@@ -40,8 +40,9 @@ def read_abaqus_input_file(file_path):
   with open(file_path, 'r') as file:
     lines = file.readlines()
     
-  # Initialize lists to store the node numbers and nodal coordinates
-  nodes = []
+  # Initialize dictionary to store the node numbers and nodal coordinates
+  # Node number is the key and the nodal coordinates are the values
+  nodes = { }
   
   # Loop over the lines and extract the node numbers and nodal coordinates
   for line in lines:
@@ -49,17 +50,21 @@ def read_abaqus_input_file(file_path):
       for line in lines[lines.index(line)+1:]:
         if line.startswith('*'):
           break
+        elif line.startswith('EPOT'):
+          break
         else:
-          nodes.append([float(x) for x in line.split(',')[1:]]) # Extract the nodal coordinates
-      
-  # Convert the list to a numpy array
-  nodes = np.array(nodes)
-  
+            #      1,  -5.47667694,   1.12071931,        0.147
+            # Split the line and extract the nodal coordinates
+            # Store node number and node coordinates in a dictionary
+          node_number = int(line.split(',')[0])
+          node_coordinates = [float(x) for x in line.split(',')[1:]]
+          nodes[node_number] = node_coordinates          
+          
   return nodes
 
 
 
-def read_abaqus_report_file(file_path):
+def read_abaqus_report_file_ECD(file_path):
   
 #********************************************************************************
 #Field Output Report, written Wed Feb 21 15:47:46 2024
@@ -82,66 +87,144 @@ def read_abaqus_report_file(file_path):
   with open(file_path, 'r') as file:
     lines = file.readlines()
     
-  # Initialize lists to store the node numbers, NCURS and ECD data
-  node_numbers = []
-  NCURS = []
-  ECD = []
+  # Initialize node_output dictionaries to store the node numbers, NCURS and ECD data
+  node_output = {}
+ 
   
   # Loop over the lines and extract the node numbers, NCURS and ECD data
   for line in lines:
-    if line.startswith('Element Label'):
-      for line in lines[lines.index(line)+1:]:
-        if line.startswith('Minimum'):
+    if line.startswith('   Element Label'):
+      for line in lines[lines.index(line)+3:]:
+        if line.startswith('  Minimum'):
           break
         else:
-          node_numbers.append(int(line.split()[1])) # Extract the node numbers
-          NCURS.append(float(line.split()[2])) # Extract the NCURS data
-          ECD.append([float(x) for x in line.split()[3:]]) # Extract the ECD data
-          
-  # Convert the lists to numpy arrays
-  node_numbers = np.array(node_numbers)
-  NCURS = np.array(NCURS)
-  ECD = np.array(ECD)
-  
-  return node_numbers, NCURS, ECD
+#   Element Label      Node Label           NCURS   ECD.Magnitude        ECD.ECD1        ECD.ECD2        ECD.ECD3          
+#               1               1     50.6991E-03     159.973E-03    -932.070E-03     115.353E-06    -61.4617E-06
+          # Extract the node numbers and ECD data and store in node_output dictionary
+          if line.strip()!='':
+            node_number = int(line.split()[1])
+            ECD = [float(x) for x in line.split()[3:]]
+            node_output[node_number] = [ECD]
+           
+  return node_output
 
 
 # Main program
 # Read the ABAQUS input file
 nodes = read_abaqus_input_file('E2_211.inp')
 
-# Print the first 5 nodes
-print(nodes[:5])
-
 # Read the ABAQUS report file
-node_numbers, NCURS, ECD = read_abaqus_report_file('E2_211.rpt')
+node_output = read_abaqus_report_file_ECD('E2_211.rpt')
 
-# Print the first 5 node numbers, NCURS and ECD data
-print(node_numbers[:5])
-print(NCURS[:5])
-print(ECD[:5])
+# Save the nodes dictionary to a text file
+with open('nodes.txt', 'w') as file:
+  for node_number, node_coordinates in nodes.items():
+    file.write(f"{node_number}, {', '.join(map(str, node_coordinates))}\n")
 
-# Create Delaunay triangulation for interpolation
-tri = Delaunay(nodes)
+# Save the node_output dictionary to a text file
+with open('node_output.txt', 'w') as file:
+  for node_number, node_data in node_output.items():
+    file.write(f"{node_number}, {', '.join(map(str, node_data))}\n")
 
-# Create figure and axes
-fig = plt.figure(figsize=(8, 6))  
+# The nodal coodinates are in XY plane with different Z values
+# Find the unique Z values
+z_values = np.unique([node[2] for node in nodes.values()])
+# Nodal coordinates X & Y of each node and node numbers of each Z plane are extracted and stored in a dictionary
+nodes_z = {}
+for z in z_values:
+  nodes_z[z] = {node_number: node_coordinates[:2] for node_number, node_coordinates in nodes.items() if node_coordinates[2] == z}
+
+  
+# Print first 5 nodes of each Z plane
+for z, nodes in nodes_z.items():
+  print(f"Z = {z}")
+  for node_number, node_coordinates in list(nodes.items())[:5]:
+    print(f"Node {node_number}: {node_coordinates}")
+  print()
+  
+# Create ECD_maginitude dictionary to store the ECD magnitude data
+ECD_magnitude = {}
+for node_number, ECD in node_output.items():
+  ECD_magnitude[node_number] = ECD[0][0]
+
+
+# Node numbers and ECD magnitude data of each Z plane are extracted and stored in a dictionary
+ECD_magnitude_z = {}
+for z, nodes in nodes_z.items():
+  ECD_magnitude_z[z] = {node_number: ECD_magnitude[node_number] for node_number in nodes.keys()}
+  
+# Print first 5 ECD magnitude of each Z plane
+for z, ECD_magnitudes in ECD_magnitude_z.items():
+  print(f"Z = {z}")
+  for node_number, ECD_magnitude in list(ECD_magnitudes.items())[:5]:
+    print(f"Node {node_number}: {ECD_magnitude}")
+  print()
+  
+# Create a dictionary of lists contains node numbers, node_coordinates and ECD magnitude for each Z plane
+ECD_magnitude_z_plot_data = {}
+for z, nodes in nodes_z.items():
+  ECD_magnitude_z_plot_data[z] = [list(nodes.keys()), list(nodes.values()), list(ECD_magnitude_z[z].values())]
+  
+# Print first 5 node numbers, node_coordinates and ECD magnitude of each Z plane
+for z, plot_data in ECD_magnitude_z_plot_data.items():
+  print(f"Z = {z}")
+  for node_number, node_coordinates, ECD_magnitude in list(zip(*plot_data))[:5]:
+    print(f"Node {node_number}: {node_coordinates}, ECD Magnitude: {ECD_magnitude}")
+  print()
+  
+# Plot the ECD magnitude data for each Z plane
+for z, plot_data in ECD_magnitude_z_plot_data.items():
+  plt.figure(figsize=(8, 6))
+  plt.scatter([node[0] for node in plot_data[1]], [node[1] for node in plot_data[1]], c=plot_data[2], cmap='viridis')
+  plt.colorbar(label='ECD Magnitude')
+  plt.title(f"ECD Magnitude at Z = {z}")
+  plt.xlabel("X")
+  plt.ylabel("Y")
+  plt.show()
+  
+# 3D Surface plot of ECD magnitude for all Z planes
+for z, plot_data in ECD_magnitude_z_plot_data.items():
+  fig = plt.figure(figsize=(8, 6))
+  ax = fig.add_subplot(111, projection='3d')
+  ax.scatter([node[0] for node in plot_data[1]], [node[1] for node in plot_data[1]], plot_data[2], c=plot_data[2], cmap='viridis')
+  ax.set_title(f"ECD Magnitude at Z = {z}")
+  # Set limits
+  ax.set_xlim(min([node[0] for node in plot_data[1]]), max([node[0] for node in plot_data[1]]))
+  ax.set_ylim(min([node[1] for node in plot_data[1]]), max([node[1] for node in plot_data[1]]))
+  ax.set_zlim(min(plot_data[2]), max(plot_data[2]))
+  ax.set_xlabel("X")
+  ax.set_ylabel("Y")
+  ax.set_zlabel("ECD Magnitude")
+  plt.show()
+  
+  
+# Create numpy arrays of X, Y and ECD magnitude data for each Z plane
+X = {}
+Y = {}
+Z = {}
+ECD_magnitude = {}
+for z, plot_data in ECD_magnitude_z_plot_data.items():
+  X[z] = np.array([node[0] for node in plot_data[1]])
+  Y[z] = np.array([node[1] for node in plot_data[1]])
+  Z[z] = np.array([z]*len(plot_data[0]))
+  ECD_magnitude[z] = np.array(plot_data[2])
+
+# Create delaunay triangulation for each Z plane
+triangulation = {}
+for z in z_values:
+  triangulation[z] = Delaunay(np.array([X[z], Y[z]]).T)
+  
+# Plot the 3D surface of ECD magnitude for all Z planes
+fig = plt.figure(figsize=(8, 6))
 ax = fig.add_subplot(111, projection='3d')
-
-# Plot the surface using triangles
-ax.plot_trisurf(nodes[:,0], nodes[:,1], NCURS, triangles=tri.simplices)
-
-# Set axis labels and limits
+for z in z_values:
+  ax.plot_trisurf(X[z], Y[z], ECD_magnitude[z], triangles=triangulation[z].simplices, cmap='viridis')
+ax.set_title("ECD Magnitude")
 ax.set_xlabel("X")
 ax.set_ylabel("Y")
-ax.set_zlabel("NCURS")
-ax.set_xlim([-5.5, 5.5])
-ax.set_ylim([-5.5, 5.5])
-
-# Set title
-ax.set_title("3D Surface Plot of NCURS")
-
-# Show the plot
+ax.set_zlabel("ECD Magnitude")
 plt.show()
+
+
 
 # %%
